@@ -3,8 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Pixelby Utforsker</title>
+    <title>PixelCity Utforsker</title>
     <style>
+        /* CSS - Utseende og Layout */
         body {
             margin: 0;
             padding: 0;
@@ -13,62 +14,69 @@
             align-items: center;
             justify-content: center;
             height: 100vh;
-            background-color: #222;
+            background-color: #1a1a1a;
             font-family: 'Courier New', Courier, monospace;
-            color: white;
+            color: #fff;
             overflow: hidden;
+            touch-action: none;
         }
 
-        #game-container {
+        #game-wrapper {
             position: relative;
-            border: 4px solid #555;
-            image-rendering: pixelated;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+            border: 4px solid #333;
         }
 
         canvas {
             display: block;
-            background-color: #2d5a27; /* Gressfarge */
+            image-rendering: pixelated; /* Beholder pikslene skarpe */
+            background-color: #2d5a27;
         }
 
-        #ui {
+        #ui-layer {
             position: absolute;
             top: 10px;
             left: 10px;
-            background: rgba(0, 0, 0, 0.7);
+            background: rgba(0, 0, 0, 0.6);
             padding: 10px;
-            border-radius: 5px;
+            border-radius: 4px;
             pointer-events: none;
+            border: 1px solid #555;
         }
 
-        /* Kontroller nede i hjørnet */
-        #controls {
+        .stat { margin-bottom: 5px; color: #ffcc00; font-weight: bold; }
+
+        /* Pil-kontroller nede i hjørnet */
+        #d-pad {
             position: fixed;
             bottom: 20px;
             right: 20px;
             display: grid;
-            grid-template-columns: repeat(3, 60px);
-            grid-template-rows: repeat(2, 60px);
-            gap: 10px;
+            grid-template-columns: repeat(3, 65px);
+            grid-template-rows: repeat(2, 65px);
+            gap: 8px;
         }
 
         .btn {
-            width: 60px;
-            height: 60px;
+            width: 65px;
+            height: 65px;
             background: #444;
-            border: 2px solid #fff;
+            border: 3px solid #666;
             color: white;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 24px;
+            font-size: 28px;
             cursor: pointer;
+            border-radius: 8px;
             user-select: none;
-            border-radius: 10px;
-            touch-action: manipulation;
+            box-shadow: 0 4px 0 #222;
         }
 
         .btn:active {
-            background: #888;
+            transform: translateY(2px);
+            box-shadow: 0 2px 0 #222;
+            background: #555;
         }
 
         #up { grid-column: 2; }
@@ -76,33 +84,41 @@
         #down { grid-column: 2; grid-row: 2; }
         #right { grid-column: 3; grid-row: 2; }
 
-        #buy-btn {
+        /* Kjøpe-knapp */
+        #shop-btn {
             position: fixed;
             bottom: 20px;
             left: 20px;
-            padding: 15px;
+            padding: 15px 25px;
             background: #e67e22;
-            border: none;
+            border: 3px solid #d35400;
             color: white;
             font-weight: bold;
+            font-size: 16px;
             cursor: pointer;
-            border-radius: 5px;
+            border-radius: 8px;
+            box-shadow: 0 4px 0 #a04000;
+        }
+
+        #shop-btn:active {
+            transform: translateY(2px);
+            box-shadow: 0 2px 0 #a04000;
         }
     </style>
 </head>
 <body>
 
-<div id="game-container">
-    <div id="ui">
-        Mynter: <span id="coin-count">0</span><br>
-        By-deler: <span id="city-size">1</span>
+<div id="game-wrapper">
+    <div id="ui-layer">
+        <div class="stat">Mynter: <span id="coin-count">0</span></div>
+        <div class="stat">Vei-deler: <span id="road-count">1</span></div>
     </div>
-    <canvas id="gameCanvas"></canvas>
+    <canvas id="cityCanvas"></canvas>
 </div>
 
-<button id="buy-btn" onclick="buyCityPart()">Kjøp ny bydel (10 coins)</button>
+<button id="shop-btn">BYGG MER VEI (10 🪙)</button>
 
-<div id="controls">
+<div id="d-pad">
     <div class="btn" id="up">▲</div>
     <div class="btn" id="left">◀</div>
     <div class="btn" id="down">▼</div>
@@ -110,46 +126,49 @@
 </div>
 
 <script>
-    const canvas = document.getElementById('gameCanvas');
+    /* JAVASCRIPT - Spillogikk */
+    const canvas = document.getElementById('cityCanvas');
     const ctx = canvas.getContext('2d');
-    const coinDisplay = document.getElementById('coin-count');
-    const cityDisplay = document.getElementById('city-size');
+    const coinEl = document.getElementById('coin-count');
+    const roadEl = document.getElementById('road-count');
 
-    // Instillinger
-    const tileSize = 40;
-    const gridWidth = 10;
-    const gridHeight = 10;
-    canvas.width = gridWidth * tileSize;
-    canvas.height = gridHeight * tileSize;
+    // Instillinger for spillverden
+    const tileSize = 32;
+    const gridDim = 12; // 12x12 ruter
+    canvas.width = tileSize * gridDim;
+    canvas.height = tileSize * gridDim;
 
     let coins = 0;
-    let cityParts = 1;
+    let roadParts = 1;
 
-    // Kart-typer: 0 = Gress (kan ikke gå), 1 = Vei (kan gå), 2 = Mynt
-    let world = Array(gridHeight).fill().map(() => Array(gridWidth).fill(0));
-
-    // Spiller
-    let player = {
-        x: 1,
-        y: 1,
-        color: '#f1c40f'
-    };
-
-    // Start-vei
-    function generateRoads() {
-        // Lag en enkel start-vei
-        for(let i=0; i<gridWidth; i++) world[1][i] = 1;
-        for(let i=0; i<gridHeight; i++) world[i][5] = 1;
+    // Kart-data: 0 = Gress/Hus, 1 = Vei, 2 = Mynt
+    let grid = [];
+    function initGrid() {
+        for(let y=0; y<gridDim; y++) {
+            grid[y] = [];
+            for(let x=0; x<gridDim; x++) {
+                grid[y][x] = 0; 
+            }
+        }
+        // Start-veier (et kryss i midten)
+        for(let i=0; i<gridDim; i++) {
+            grid[5][i] = 1;
+            grid[i][5] = 1;
+        }
         spawnCoin();
     }
+
+    // Spiller-posisjon
+    let player = { x: 5, y: 5 };
 
     function spawnCoin() {
         let placed = false;
         while(!placed) {
-            let rx = Math.floor(Math.random() * gridWidth);
-            let ry = Math.floor(Math.random() * gridHeight);
-            if(world[ry][rx] === 1) {
-                world[ry][rx] = 2;
+            let rx = Math.floor(Math.random() * gridDim);
+            let ry = Math.floor(Math.random() * gridDim);
+            // Mynt kan bare spawne på vei (type 1)
+            if(grid[ry][rx] === 1) {
+                grid[ry][rx] = 2;
                 placed = true;
             }
         }
@@ -158,37 +177,110 @@
     function draw() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-        for(let y=0; y<gridHeight; y++) {
-            for(let x=0; x<gridWidth; x++) {
-                if(world[y][x] === 1 || world[y][x] === 2) {
-                    ctx.fillStyle = '#555'; // Vei
+        for(let y=0; y<gridDim; y++) {
+            for(let x=0; x<gridDim; x++) {
+                let cell = grid[y][x];
+                
+                // Tegn bakken/gress
+                ctx.fillStyle = "#2d5a27";
+                ctx.fillRect(x*tileSize, y*tileSize, tileSize, tileSize);
+
+                if(cell === 0) {
+                    // Tegn små hus eller busker
+                    ctx.fillStyle = "#4a3728";
+                    ctx.fillRect(x*tileSize+6, y*tileSize+6, tileSize-12, tileSize-12);
+                } else if(cell >= 1) {
+                    // Tegn vei
+                    ctx.fillStyle = "#555";
                     ctx.fillRect(x*tileSize, y*tileSize, tileSize, tileSize);
-                } else {
-                    ctx.fillStyle = '#2d5a27'; // Gress
-                    ctx.fillRect(x*tileSize, y*tileSize, tileSize, tileSize);
-                    // Tegn små "hus" piksler
-                    ctx.fillStyle = '#4a3728';
-                    ctx.fillRect(x*tileSize+10, y*tileSize+10, 20, 20);
+                    // Vei-markering
+                    ctx.fillStyle = "#777";
+                    ctx.fillRect(x*tileSize+14, y*tileSize, 4, tileSize);
                 }
 
-                if(world[y][x] === 2) {
-                    ctx.fillStyle = '#ffd700'; // Mynt
+                if(cell === 2) {
+                    // Tegn mynt
+                    ctx.fillStyle = "#ffd700";
                     ctx.beginPath();
-                    ctx.arc(x*tileSize + tileSize/2, y*tileSize + tileSize/2, 8, 0, Math.PI*2);
+                    ctx.arc(x*tileSize + tileSize/2, y*tileSize + tileSize/2, 6, 0, Math.PI*2);
                     ctx.fill();
                 }
             }
         }
 
-        // Tegn spiller
-        ctx.fillStyle = player.color;
-        ctx.fillRect(player.x * tileSize + 8, player.y * tileSize + 8, tileSize - 16, tileSize - 16);
+        // Tegn spiller (den lille personen)
+        ctx.fillStyle = "#e74c3c"; // Rød person
+        ctx.fillRect(player.x * tileSize + 8, player.y * tileSize + 4, tileSize - 16, tileSize - 10);
+        ctx.fillStyle = "#ffdbac"; // Hudfarge hode
+        ctx.fillRect(player.x * tileSize + 10, player.y * tileSize + 2, tileSize - 20, 8);
     }
 
     function move(dx, dy) {
-        let newX = player.x + dx;
-        let newY = player.y + dy;
+        let nextX = player.x + dx;
+        let nextY = player.y + dy;
 
-        // Sjekk grenser og om det er vei (1 eller 2)
-        if(newX >= 0 && newX < gridWidth && newY >= 0 && newY < gridHeight) {
-            if(world[newY][new
+        // Sjekk om innenfor brettet
+        if(nextX >= 0 && nextX < gridDim && nextY >= 0 && nextY < gridDim) {
+            // Sjekk om det er vei (type 1 eller 2)
+            if(grid[nextY][nextX] >= 1) {
+                player.x = nextX;
+                player.y = nextY;
+
+                // Sjekk mynt-oppsamling
+                if(grid[player.y][player.x] === 2) {
+                    grid[player.y][player.x] = 1;
+                    coins++;
+                    coinEl.innerText = coins;
+                    spawnCoin();
+                }
+                draw();
+            }
+        }
+    }
+
+    document.getElementById('shop-btn').onclick = () => {
+        if(coins >= 10) {
+            coins -= 10;
+            roadParts++;
+            coinEl.innerText = coins;
+            roadEl.innerText = roadParts;
+
+            // Legg til en ny tilfeldig vei-linje
+            let isVertical = Math.random() > 0.5;
+            let pos = Math.floor(Math.random() * (gridDim - 2)) + 1;
+            
+            for(let i=0; i<gridDim; i++) {
+                if(isVertical) grid[i][pos] = 1;
+                else grid[pos][i] = 1;
+            }
+            // Sørg for at det alltid er en mynt tilgjengelig
+            spawnCoin();
+            draw();
+        } else {
+            alert("Du trenger 10 mynter for å utvide byen!");
+        }
+    };
+
+    // Knapp-kontrollere
+    document.getElementById('up').onclick = () => move(0, -1);
+    document.getElementById('down').onclick = () => move(0, 1);
+    document.getElementById('left').onclick = () => move(-1, 0);
+    document.getElementById('right').onclick = () => move(1, 0);
+
+    // Tastatur-støtte
+    window.addEventListener('keydown', (e) => {
+        switch(e.key) {
+            case "ArrowUp": move(0, -1); break;
+            case "ArrowDown": move(0, 1); break;
+            case "ArrowLeft": move(-1, 0); break;
+            case "ArrowRight": move(1, 0); break;
+        }
+    });
+
+    // Start spillet
+    initGrid();
+    draw();
+</script>
+
+</body>
+</html>
