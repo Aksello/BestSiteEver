@@ -3,12 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Pixel City Expansion</title>
+    <title>Pixel City Deluxe</title>
     <style>
         :root {
             --ui-bg: rgba(20, 20, 25, 0.95);
             --accent: #f1c40f;
-            --road: #3d3d3d;
+            --road-color: #4a4a4a;
+            --sidewalk-color: #777;
+            --grass-color: #4CAF50;
+            --player-color: #3498db;
         }
 
         body {
@@ -31,9 +34,10 @@
         }
 
         canvas {
-            image-rendering: pixelated;
+            /* Behlder image-rendering: pixelated for å ikke "blur" detaljene, men TILE_SIZE gjør det mindre synlig */
+            image-rendering: pixelated; 
             border: 4px solid #333;
-            background-color: #27ae60;
+            background-color: var(--grass-color);
             box-shadow: 0 0 50px rgba(0,0,0,0.5);
         }
 
@@ -85,8 +89,8 @@
         #up { grid-column: 2; }
         #left { grid-column: 1; grid-row: 2; }
         #down { grid-column: 2; grid-row: 2; }
-        #right { grid-column: 3; grid-row: 2; }
-
+        #right { grid-column: 3; grid-row: 3; } /* Endret til 3 for å gi plass til kjøp-knapp */
+        
         #buy-area {
             position: fixed;
             bottom: 30px;
@@ -148,36 +152,69 @@
     const ctx = canvas.getContext('2d');
 
     // Spillinnstillinger
-    const TILE_SIZE = 50;
+    const TILE_SIZE = 60; // Økt størrelse for mindre pikselert følelse
     let gridDim = 10; 
-    let grid = [];
+    let grid = []; // 0=Gress/Bygning, 1=Vei, 2=Mynt, 3=Park
+    let buildingTypes = []; // Lagrer type for hver bygning
+    
     let coins = 0;
     let player = { x: 2, y: 2 };
     
     // Kamera-innstillinger
-    const viewSize = 600; 
+    const viewSize = 720; // Større visningsområde
     canvas.width = viewSize;
     canvas.height = viewSize;
 
-    function initGrid(dim) {
-        let newGrid = Array(dim).fill().map(() => Array(dim).fill(0));
-        // Behold gamle data hvis de finnes
-        for(let y=0; y<grid.length; y++) {
-            for(let x=0; x<grid[y].length; x++) {
-                newGrid[y][x] = grid[y][x];
+    // Bygningstyper for generering
+    const Building = {
+        HOUSE: 0,
+        COMMERCIAL: 1,
+        SKYSCRAPER: 2,
+        PARK_TREE: 3,
+        PARK_BENCH: 4,
+        PARK_POND: 5
+    };
+
+    function initGrid(newDim) {
+        let oldGrid = grid;
+        let oldBuildingTypes = buildingTypes;
+
+        gridDim = newDim;
+        grid = Array(gridDim).fill().map(() => Array(gridDim).fill(0));
+        buildingTypes = Array(gridDim).fill().map(() => Array(gridDim).fill(0));
+
+        // Kopier gamle data
+        for(let y=0; y<oldGrid.length; y++) {
+            for(let x=0; x<oldGrid[y].length; x++) {
+                grid[y][x] = oldGrid[y][x];
+                buildingTypes[y][x] = oldBuildingTypes[y][x];
             }
         }
-        grid = newGrid;
         
-        // Legg til veier i de nye områdene
-        for(let i=0; i<dim; i++) {
-            grid[2][i] = grid[2][i] || 1;
-            grid[i][2] = grid[i][2] || 1;
-            // Legg til en ekstra tilfeldig hovedvei for hver ekspansjon
-            if (dim > 10 && i % 8 === 0) {
-                for(let j=0; j<dim; j++) grid[i][j] = 1;
+        // Generer nye veier og bygninger i det nye området
+        for(let y=0; y<gridDim; y++) {
+            for(let x=0; x<gridDim; x++) {
+                if(grid[y][x] === 0) { // Hvis det er nytt gress
+                    // Tilfeldig bygning eller park
+                    let rand = Math.random();
+                    if (rand < 0.6) buildingTypes[y][x] = Math.floor(Math.random() * 3); // Hus, Forretning, Skyskraper
+                    else buildingTypes[y][x] = Math.floor(Math.random() * 3) + 3; // Tre, Benk, Dam
+                    
+                    if (buildingTypes[y][x] >= Building.PARK_TREE) {
+                        grid[y][x] = 3; // Markerer som park-rute
+                    }
+                }
             }
         }
+
+        // Start-veier
+        // Sørg for at startveiene er på riktig sted i det nye, større kartet
+        for(let i=0; i<gridDim; i++) {
+            grid[player.y][i] = 1;
+            grid[i][player.x] = 1;
+        }
+
+        // Klargjør nye områder for utforskning
         spawnCoin();
     }
 
@@ -190,82 +227,167 @@
         }
         if(roadTiles.length > 0) {
             let pos = roadTiles[Math.floor(Math.random() * roadTiles.length)];
-            grid[pos.y][pos.x] = 2;
+            grid[pos.y][pos.x] = 2; // Mynt
         }
     }
 
-    function draw() {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
+    function isRoad(x, y) {
+        return x >= 0 && x < gridDim && y >= 0 && y < gridDim && grid[y][x] === 1;
+    }
 
-        // Kamera-offset (sentrer på spiller)
-        const offsetX = (viewSize / 2) - (player.x * TILE_SIZE) - (TILE_SIZE / 2);
-        const offsetY = (viewSize / 2) - (player.y * TILE_SIZE) - (TILE_SIZE / 2);
+    function drawTile(x, y, offsetX, offsetY) {
+        const tx = x * TILE_SIZE + offsetX;
+        const ty = y * TILE_SIZE + offsetY;
 
-        for(let y=0; y<gridDim; y++) {
-            for(let x=0; x<gridDim; x++) {
-                const tx = x * TILE_SIZE + offsetX;
-                const ty = y * TILE_SIZE + offsetY;
+        // Hopp over tegning hvis utenfor skjermen
+        if (tx + TILE_SIZE < 0 || tx > viewSize || ty + TILE_SIZE < 0 || ty > viewSize) return;
 
-                // Tegn kun hvis det er innenfor canvas for ytelse
-                if (tx < -TILE_SIZE || tx > viewSize || ty < -TILE_SIZE || ty > viewSize) continue;
+        // 1. GRESS/GRUNN
+        ctx.fillStyle = "#699e69"; // Lysere gress
+        ctx.fillRect(tx, ty, TILE_SIZE, TILE_SIZE);
+        ctx.fillStyle = "rgba(0,0,0,0.05)"; // Skygge
+        ctx.fillRect(tx, ty + TILE_SIZE - 5, TILE_SIZE, 5); // Base-skygge
 
-                // 1. GRESS
-                ctx.fillStyle = "#27ae60";
-                ctx.fillRect(tx, ty, TILE_SIZE, TILE_SIZE);
-                ctx.fillStyle = "#2ecc71";
-                ctx.fillRect(tx+10, ty+10, 4, 4); // Blomst/gress-strå
+        if(grid[y][x] === 1) { // VEI
+            ctx.fillStyle = varColor('--road-color');
+            ctx.fillRect(tx, ty, TILE_SIZE, TILE_SIZE);
+            
+            // Bitmasking for fortau og veistriper
+            let neighbors = {
+                N: isRoad(x, y-1), S: isRoad(x, y+1),
+                W: isRoad(x-1, y), E: isRoad(x+1, y)
+            };
 
-                if(grid[y][x] === 0) {
-                    // 2. HUS (Bedre grafikk)
-                    ctx.fillStyle = "#2c3e50"; // Skygge
-                    ctx.fillRect(tx+8, ty+12, TILE_SIZE-16, TILE_SIZE-16);
-                    ctx.fillStyle = "#ecf0f1"; // Vegg
-                    ctx.fillRect(tx+8, ty+8, TILE_SIZE-16, TILE_SIZE-20);
-                    ctx.fillStyle = "#e74c3c"; // Tak
-                    ctx.beginPath();
-                    ctx.moveTo(tx+8, ty+8); ctx.lineTo(tx+TILE_SIZE/2, ty+2); ctx.lineTo(tx+TILE_SIZE-8, ty+8);
-                    ctx.fill();
-                    // Vindu
-                    ctx.fillStyle = "#f1c40f";
-                    ctx.fillRect(tx+12, ty+14, 6, 6);
-                } else {
-                    // 3. VEI
-                    ctx.fillStyle = "#333";
-                    ctx.fillRect(tx, ty, TILE_SIZE, TILE_SIZE);
-                    
-                    // Vei-detaljer (kantlinjer)
-                    ctx.strokeStyle = "#444";
-                    ctx.strokeRect(tx+2, ty+2, TILE_SIZE-4, TILE_SIZE-4);
+            ctx.fillStyle = varColor('--sidewalk-color');
+            const sidewalkThickness = 8; // Tykkelse på fortau
 
-                    // Midtstripe (hvis det er vei ved siden av)
-                    ctx.fillStyle = "#555";
-                    if(grid[y][x+1]) ctx.fillRect(tx + TILE_SIZE-10, ty + TILE_SIZE/2 - 2, 10, 4);
-                    if(grid[y+1] && grid[y+1][x]) ctx.fillRect(tx + TILE_SIZE/2 - 2, ty + TILE_SIZE-10, 4, 10);
+            if (!neighbors.N) ctx.fillRect(tx, ty, TILE_SIZE, sidewalkThickness);
+            if (!neighbors.S) ctx.fillRect(tx, ty + TILE_SIZE - sidewalkThickness, TILE_SIZE, sidewalkThickness);
+            if (!neighbors.W) ctx.fillRect(tx, ty, sidewalkThickness, TILE_SIZE);
+            if (!neighbors.E) ctx.fillRect(tx + TILE_SIZE - sidewalkThickness, ty, sidewalkThickness, TILE_SIZE);
+
+            // Tegn hjørner på fortau der det er "inngang" til gress
+            ctx.fillStyle = varColor('--sidewalk-color');
+            if(!neighbors.N && !neighbors.W) ctx.fillRect(tx, ty, sidewalkThickness, sidewalkThickness);
+            if(!neighbors.N && !neighbors.E) ctx.fillRect(tx + TILE_SIZE - sidewalkThickness, ty, sidewalkThickness, sidewalkThickness);
+            if(!neighbors.S && !neighbors.W) ctx.fillRect(tx, ty + TILE_SIZE - sidewalkThickness, sidewalkThickness, sidewalkThickness);
+            if(!neighbors.S && !neighbors.E) ctx.fillRect(tx + TILE_SIZE - sidewalkThickness, ty + TILE_SIZE - sidewalkThickness, sidewalkThickness, sidewalkThickness);
+
+            // Veistriper - Mer detaljert
+            ctx.fillStyle = "rgba(255,255,255,0.15)";
+            const stripWidth = 6;
+            const stripLength = 10;
+            const stripGap = 15;
+
+            if (neighbors.N && neighbors.S) { // Vertikal vei
+                for (let i = 0; i < TILE_SIZE; i += stripGap) {
+                    ctx.fillRect(tx + TILE_SIZE/2 - stripWidth/2, ty + i, stripWidth, stripLength);
                 }
-
-                if(grid[y][x] === 2) {
-                    // 4. MYNT (Glitrende)
-                    ctx.fillStyle = "#f1c40f";
-                    const s = Math.sin(Date.now() / 200) * 5;
-                    ctx.beginPath();
-                    ctx.arc(tx + TILE_SIZE/2, ty + TILE_SIZE/2, 10 + s/2, 0, Math.PI*2);
-                    ctx.fill();
+            }
+            if (neighbors.W && neighbors.E) { // Horisontal vei
+                for (let i = 0; i < TILE_SIZE; i += stripGap) {
+                    ctx.fillRect(tx + i, ty + TILE_SIZE/2 - stripWidth/2, stripLength, stripWidth);
                 }
+            }
+
+        } else if (grid[y][x] === 3) { // PARK
+            // Gress-bakgrunn er allerede tegnet
+            let parkType = buildingTypes[y][x];
+            if (parkType === Building.PARK_TREE) {
+                ctx.fillStyle = "#8B4513"; // Stamme
+                ctx.fillRect(tx + TILE_SIZE/2 - 4, ty + TILE_SIZE/2 + 5, 8, 15);
+                ctx.fillStyle = "#228B22"; // Krone
+                ctx.beginPath();
+                ctx.arc(tx + TILE_SIZE/2, ty + TILE_SIZE/2 - 5, 15, 0, Math.PI * 2);
+                ctx.fill();
+            } else if (parkType === Building.PARK_BENCH) {
+                ctx.fillStyle = "#8B4513"; // Benk
+                ctx.fillRect(tx + 10, ty + TILE_SIZE/2 - 5, TILE_SIZE - 20, 10);
+                ctx.fillRect(tx + 12, ty + TILE_SIZE/2 - 15, 5, 10);
+                ctx.fillRect(tx + TILE_SIZE - 17, ty + TILE_SIZE/2 - 15, 5, 10);
+            } else if (parkType === Building.PARK_POND) {
+                ctx.fillStyle = "#4682B4"; // Dam
+                ctx.beginPath();
+                ctx.ellipse(tx + TILE_SIZE/2, ty + TILE_SIZE/2, TILE_SIZE/2 - 10, TILE_SIZE/2 - 15, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = "#A9D0F5"; // Vannrefleksjon
+                ctx.fillRect(tx + TILE_SIZE/2 - 10, ty + TILE_SIZE/2 + 5, 20, 5);
+            }
+        } else if (grid[y][x] === 0) { // BYGNINGER
+            let bType = buildingTypes[y][x];
+            ctx.fillStyle = "rgba(0,0,0,0.3)"; // Skygge
+            ctx.fillRect(tx+10, ty+14, TILE_SIZE-20, TILE_SIZE-20);
+            
+            if (bType === Building.HOUSE) {
+                ctx.fillStyle = "#e74c3c"; // Vegger
+                ctx.fillRect(tx+10, ty+10, TILE_SIZE-20, TILE_SIZE-25);
+                ctx.fillStyle = "#c0392b"; // Tak
+                ctx.beginPath();
+                ctx.moveTo(tx+10, ty+10); ctx.lineTo(tx+TILE_SIZE/2, ty+5); ctx.lineTo(tx+TILE_SIZE-10, ty+10);
+                ctx.fill();
+                ctx.fillStyle = "#f1c40f"; // Vindu
+                ctx.fillRect(tx+15, ty+15, 10, 10);
+            } else if (bType === Building.COMMERCIAL) {
+                ctx.fillStyle = "#95a5a6"; // Vegger
+                ctx.fillRect(tx+8, ty+8, TILE_SIZE-16, TILE_SIZE-16);
+                ctx.fillStyle = "#3498db"; // Vindu
+                ctx.fillRect(tx+12, ty+12, 12, 8);
+                ctx.fillRect(tx+TILE_SIZE-24, ty+12, 12, 8);
+            } else if (bType === Building.SKYSCRAPER) {
+                ctx.fillStyle = "#7f8c8d"; // Vegger
+                ctx.fillRect(tx+12, ty+4, TILE_SIZE-24, TILE_SIZE-8);
+                ctx.fillStyle = "#555"; // Tak
+                ctx.fillRect(tx+12, ty+4, TILE_SIZE-24, 4);
+                ctx.fillStyle = "#3498db"; // Vindu
+                ctx.fillRect(tx+15, ty+10, 6, 6);
+                ctx.fillRect(tx+15, ty+20, 6, 6);
+                ctx.fillRect(tx+25, ty+10, 6, 6);
+                ctx.fillRect(tx+25, ty+20, 6, 6);
             }
         }
 
-        // SPILLER
-        const px = (viewSize / 2) - (TILE_SIZE / 2);
-        const py = (viewSize / 2) - (TILE_SIZE / 2);
-        
-        ctx.fillStyle = "#3498db"; // Kropp
-        ctx.fillRect(px+10, py+15, 30, 30);
-        ctx.fillStyle = "#f3dbc2"; // Hode
-        ctx.fillRect(px+15, py+5, 20, 20);
-        ctx.fillStyle = "#222"; // Øyne
-        ctx.fillRect(px+20, py+12, 3, 3); ctx.fillRect(px+27, py+12, 3, 3);
+        if(grid[y][x] === 2) { // MYNT
+            ctx.fillStyle = varColor('--accent');
+            const bounce = Math.sin(Date.now() / 200) * 3;
+            ctx.beginPath();
+            ctx.arc(tx + TILE_SIZE/2, ty + TILE_SIZE/2 + bounce, 12, 0, Math.PI*2);
+            ctx.fill();
+            ctx.strokeStyle = "white";
+            ctx.lineWidth = 2;
+            ctx.stroke();
+        }
+    }
 
-        requestAnimationFrame(draw);
+    function render() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        const camX = player.x * TILE_SIZE - (viewSize / 2) + (TILE_SIZE / 2);
+        const camY = player.y * TILE_SIZE - (viewSize / 2) + (TILE_SIZE / 2);
+        
+        for(let y=0; y<gridDim; y++) {
+            for(let x=0; x<gridDim; x++) {
+                drawTile(x, y, -camX, -camY);
+            }
+        }
+
+        // Tegn spilleren i sentrum av visningen
+        const playerDrawX = (viewSize / 2) - (TILE_SIZE / 2);
+        const playerDrawY = (viewSize / 2) - (TILE_SIZE / 2);
+
+        ctx.fillStyle = "rgba(0,0,0,0.3)"; // Spiller-skygge
+        ctx.beginPath();
+        ctx.ellipse(playerDrawX + TILE_SIZE/2, playerDrawY + TILE_SIZE - 8, TILE_SIZE/2 - 10, 6, 0, 0, Math.PI*2);
+        ctx.fill();
+        
+        ctx.fillStyle = varColor('--player-color'); // Kropp
+        ctx.fillRect(playerDrawX + 15, playerDrawY + 20, TILE_SIZE-30, TILE_SIZE-30);
+        ctx.fillStyle = "#f3dbc2"; // Hode
+        ctx.fillRect(playerDrawX + 18, playerDrawY + 8, TILE_SIZE-36, TILE_SIZE-36);
+        ctx.fillStyle = "#222"; // Øyne
+        ctx.fillRect(playerDrawX + 22, playerDrawY + 14, 3, 3);
+        ctx.fillRect(playerDrawX + TILE_SIZE - 25, playerDrawY + 14, 3, 3);
+
+        requestAnimationFrame(render);
     }
 
     function move(dx, dy) {
@@ -273,7 +395,7 @@
         let ny = player.y + dy;
 
         if(nx >= 0 && nx < gridDim && ny >= 0 && ny < gridDim) {
-            if(grid[ny][nx] >= 1) {
+            if(grid[ny][nx] === 1 || grid[ny][nx] === 2) { // Kan bare gå på vei eller mynt
                 player.x = nx;
                 player.y = ny;
 
@@ -290,9 +412,22 @@
     function expandCity() {
         if(coins >= 10) {
             coins -= 10;
-            gridDim += 5; // Utvid kartet med 5 ruter i begge retninger
-            initGrid(gridDim);
+            const oldDim = gridDim;
+            gridDim += 5; // Øk dimensjonen
+            initGrid(gridDim); // Re-initialiser med ny dimensjon
+
+            // Generer nye veier i det ekspanderte området for tilkobling
+            for(let i = oldDim; i < gridDim; i++) { // Legg til vei langs nye grenser
+                grid[i][Math.floor(oldDim/2)] = 1;
+                grid[Math.floor(oldDim/2)][i] = 1;
+            }
+
+            // Flytt spilleren til en sentral posisjon i det nye kartet hvis nødvendig
+            if (player.x >= oldDim - 2) player.x = oldDim - 2;
+            if (player.y >= oldDim - 2) player.y = oldDim - 2;
+
             updateUI();
+            draw();
         }
     }
 
@@ -307,7 +442,7 @@
     Object.keys(dirs).forEach(id => {
         const btn = document.getElementById(id);
         const handler = (e) => { e.preventDefault(); move(...dirs[id]); };
-        btn.addEventListener('touchstart', handler);
+        btn.addEventListener('touchstart', handler, { passive: false });
         btn.addEventListener('mousedown', handler);
     });
 
@@ -319,6 +454,7 @@
     });
 
     initGrid(gridDim);
+    updateUI();
     draw();
 </script>
 
