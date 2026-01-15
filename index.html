@@ -3,91 +3,83 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Pixel City Tycoon</title>
+    <title>Pixel City Expansion</title>
     <style>
         :root {
-            --ui-panel: #2c3e50;
-            --ui-border: #34495e;
-            --text: #ecf0f1;
-            --gold: #f1c40f;
+            --ui-bg: rgba(20, 20, 25, 0.95);
+            --accent: #f1c40f;
+            --road: #3d3d3d;
         }
 
         body {
             margin: 0;
-            padding: 0;
-            background-color: #1a1a1a;
-            font-family: 'Courier New', Courier, monospace;
-            color: var(--text);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            height: 100vh;
+            background-color: #111;
+            color: white;
+            font-family: 'Segoe UI', Tahoma, sans-serif;
             overflow: hidden;
-            /* Stopper zoom og system-gestures */
-            touch-action: none;
+            touch-action: none; /* Stopper all zooming og scrolling */
             user-select: none;
-            -webkit-user-select: none;
         }
 
-        #game-container {
+        #game-wrapper {
             position: relative;
-            border: 8px solid var(--ui-border);
-            border-radius: 4px;
-            box-shadow: 0 20px 50px rgba(0,0,0,0.8);
-            image-rendering: pixelated;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
 
         canvas {
-            display: block;
+            image-rendering: pixelated;
+            border: 4px solid #333;
             background-color: #27ae60;
+            box-shadow: 0 0 50px rgba(0,0,0,0.5);
         }
 
         #hud {
-            position: absolute;
-            top: 10px;
-            left: 10px;
-            background: rgba(44, 62, 80, 0.9);
-            padding: 10px 15px;
-            border-radius: 4px;
-            border-left: 5px solid var(--gold);
-            pointer-events: none;
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            background: var(--ui-bg);
+            padding: 15px;
+            border-radius: 12px;
+            border-left: 6px solid var(--accent);
+            min-width: 120px;
         }
 
-        .stat { font-size: 18px; font-weight: bold; margin: 2px 0; }
-        .stat span { color: var(--gold); }
+        .stat-val { font-size: 24px; font-weight: 800; color: var(--accent); }
+        .stat-label { font-size: 10px; text-transform: uppercase; opacity: 0.7; }
 
-        /* D-PAD Kontroller */
+        /* Styring */
         #controls {
             position: fixed;
             bottom: 30px;
             right: 30px;
             display: grid;
-            grid-template-columns: repeat(3, 75px);
-            grid-template-rows: repeat(2, 75px);
-            gap: 10px;
+            grid-template-columns: repeat(3, 80px);
+            grid-template-rows: repeat(2, 80px);
+            gap: 15px;
         }
 
         .btn {
-            width: 75px;
-            height: 75px;
-            background: #34495e;
+            width: 80px;
+            height: 80px;
+            background: #2c3e50;
             border: none;
-            border-bottom: 6px solid #2c3e50;
+            border-radius: 15px;
             color: white;
-            font-size: 30px;
+            font-size: 32px;
             display: flex;
             align-items: center;
             justify-content: center;
-            border-radius: 10px;
             cursor: pointer;
-            transition: 0.05s;
+            box-shadow: 0 6px 0 #1a252f;
         }
 
         .btn:active {
             transform: translateY(4px);
-            border-bottom-width: 2px;
-            background: #2c3e50;
+            box-shadow: 0 2px 0 #1a252f;
         }
 
         #up { grid-column: 2; }
@@ -102,25 +94,25 @@
         }
 
         #buy-btn {
-            padding: 20px 30px;
+            padding: 20px 40px;
             background: #e67e22;
             border: none;
-            border-bottom: 6px solid #d35400;
             color: white;
             font-weight: bold;
-            font-size: 16px;
-            border-radius: 10px;
+            border-radius: 15px;
+            box-shadow: 0 6px 0 #a04000;
             cursor: pointer;
+            font-size: 18px;
         }
 
-        #buy-btn:active {
+        #buy-btn:active:not(:disabled) {
             transform: translateY(4px);
-            border-bottom-width: 2px;
+            box-shadow: 0 2px 0 #a04000;
         }
 
         #buy-btn:disabled {
-            background: #7f8c8d;
-            border-bottom-color: #95a5a6;
+            background: #555;
+            box-shadow: 0 6px 0 #333;
             opacity: 0.5;
             cursor: not-allowed;
         }
@@ -128,16 +120,20 @@
 </head>
 <body>
 
-<div id="game-container">
-    <div id="hud">
-        <div class="stat">💰 <span id="coin-txt">0</span></div>
-        <div class="stat">🏙️ NIVÅ <span id="lv-txt">1</span></div>
-    </div>
-    <canvas id="worldCanvas"></canvas>
+<div id="game-wrapper">
+    <canvas id="cityCanvas"></canvas>
+</div>
+
+<div id="hud">
+    <div class="stat-label">Mynter</div>
+    <div class="stat-val" id="coin-txt">0</div>
+    <div style="height: 10px;"></div>
+    <div class="stat-label">By-Størrelse</div>
+    <div class="stat-val" id="size-txt">10x10</div>
 </div>
 
 <div id="buy-area">
-    <button id="buy-btn">UTVID BYEN (10 🪙)</button>
+    <button id="buy-btn" onclick="expandCity()">UTVID BYEN (10 🪙)</button>
 </div>
 
 <div id="controls">
@@ -148,190 +144,171 @@
 </div>
 
 <script>
-    const canvas = document.getElementById('worldCanvas');
+    const canvas = document.getElementById('cityCanvas');
     const ctx = canvas.getContext('2d');
-    
-    // Konfigurasjon
-    const TILE_SIZE = 48;
-    const GRID_SIZE = 10;
-    canvas.width = TILE_SIZE * GRID_SIZE;
-    canvas.height = TILE_SIZE * GRID_SIZE;
 
+    // Spillinnstillinger
+    const TILE_SIZE = 50;
+    let gridDim = 10; 
+    let grid = [];
     let coins = 0;
-    let level = 1;
     let player = { x: 2, y: 2 };
     
-    // Kart-data: 0=Gress, 1=Vei, 2=Mynt
-    let grid = Array(GRID_SIZE).fill().map(() => Array(GRID_SIZE).fill(0));
-    // Bygningstyper lagret for hver gress-rute
-    let buildings = Array(GRID_SIZE).fill().map(() => Array(GRID_SIZE).fill(0).map(() => Math.floor(Math.random() * 3)));
+    // Kamera-innstillinger
+    const viewSize = 600; 
+    canvas.width = viewSize;
+    canvas.height = viewSize;
 
-    function isRoad(x, y) {
-        if (x < 0 || x >= GRID_SIZE || y < 0 || y >= GRID_SIZE) return false;
-        return grid[y][x] >= 1;
-    }
-
-    function init() {
-        // Start-layout
-        for(let i=0; i<GRID_SIZE; i++) {
-            grid[2][i] = 1;
-            grid[i][5] = 1;
+    function initGrid(dim) {
+        let newGrid = Array(dim).fill().map(() => Array(dim).fill(0));
+        // Behold gamle data hvis de finnes
+        for(let y=0; y<grid.length; y++) {
+            for(let x=0; x<grid[y].length; x++) {
+                newGrid[y][x] = grid[y][x];
+            }
+        }
+        grid = newGrid;
+        
+        // Legg til veier i de nye områdene
+        for(let i=0; i<dim; i++) {
+            grid[2][i] = grid[2][i] || 1;
+            grid[i][2] = grid[i][2] || 1;
+            // Legg til en ekstra tilfeldig hovedvei for hver ekspansjon
+            if (dim > 10 && i % 8 === 0) {
+                for(let j=0; j<dim; j++) grid[i][j] = 1;
+            }
         }
         spawnCoin();
-        render();
     }
 
     function spawnCoin() {
-        let emptyRoads = [];
-        for(let y=0; y<GRID_SIZE; y++) {
-            for(let x=0; x<GRID_SIZE; x++) {
-                if(grid[y][x] === 1) emptyRoads.push({x, y});
+        let roadTiles = [];
+        for(let y=0; y<gridDim; y++) {
+            for(let x=0; x<gridDim; x++) {
+                if(grid[y][x] === 1) roadTiles.push({x, y});
             }
         }
-        if(emptyRoads.length > 0) {
-            let target = emptyRoads[Math.floor(Math.random() * emptyRoads.length)];
-            grid[target.y][target.x] = 2;
+        if(roadTiles.length > 0) {
+            let pos = roadTiles[Math.floor(Math.random() * roadTiles.length)];
+            grid[pos.y][pos.x] = 2;
         }
     }
 
-    function drawTile(x, y) {
-        const tx = x * TILE_SIZE;
-        const ty = y * TILE_SIZE;
-        const type = grid[y][x];
-
-        // 1. GRUNNMUR (Gress/Terreng)
-        ctx.fillStyle = "#27ae60";
-        ctx.fillRect(tx, ty, TILE_SIZE, TILE_SIZE);
-        
-        // Små gress-detaljer
-        ctx.fillStyle = "#2ecc71";
-        ctx.fillRect(tx + 8, ty + 12, 4, 4);
-        ctx.fillRect(tx + 30, ty + 35, 4, 4);
-
-        if (type === 0) {
-            // TEGN BYGNINGER
-            let bType = buildings[y][x];
-            ctx.fillStyle = "rgba(0,0,0,0.2)"; // Skygge
-            ctx.fillRect(tx+10, ty+14, TILE_SIZE-16, TILE_SIZE-16);
-
-            if(bType === 0) { // Lite hus
-                ctx.fillStyle = "#e67e22"; ctx.fillRect(tx+8, ty+8, TILE_SIZE-16, TILE_SIZE-20);
-                ctx.fillStyle = "#d35400"; ctx.fillRect(tx+8, ty+4, TILE_SIZE-16, 6); // Tak
-            } else if(bType === 1) { // Kontor
-                ctx.fillStyle = "#95a5a6"; ctx.fillRect(tx+6, ty+6, TILE_SIZE-12, TILE_SIZE-12);
-                ctx.fillStyle = "#3498db"; ctx.fillRect(tx+12, ty+12, 8, 8); // Vindu
-                ctx.fillRect(tx+28, ty+12, 8, 8);
-            } else { // Park/Tre
-                ctx.fillStyle = "#2ecc71"; ctx.beginPath();
-                ctx.arc(tx+TILE_SIZE/2, ty+TILE_SIZE/2, 12, 0, Math.PI*2); ctx.fill();
-            }
-        } else {
-            // TEGN VEI (med fortau-logikk)
-            ctx.fillStyle = "#444"; // Asfalt
-            ctx.fillRect(tx, ty, TILE_SIZE, TILE_SIZE);
-
-            // Fortau/Kanter (Bitmasking light)
-            ctx.fillStyle = "#95a5a6";
-            if (!isRoad(x, y-1)) ctx.fillRect(tx, ty, TILE_SIZE, 4); // Topp
-            if (!isRoad(x, y+1)) ctx.fillRect(tx, ty + TILE_SIZE - 4, TILE_SIZE, 4); // Bunn
-            if (!isRoad(x-1, y)) ctx.fillRect(tx, ty, 4, TILE_SIZE); // Venstre
-            if (!isRoad(x+1, y)) ctx.fillRect(tx + TILE_SIZE - 4, ty, 4, TILE_SIZE); // Høyre
-
-            // Vei-striper
-            ctx.fillStyle = "rgba(255,255,255,0.1)";
-            ctx.fillRect(tx + TILE_SIZE/2 - 2, ty + TILE_SIZE/2 - 2, 4, 4);
-        }
-
-        if (type === 2) {
-            // MYNT-ANIMASJON (bruker tid for å glitre)
-            let bounce = Math.sin(Date.now() / 200) * 3;
-            ctx.fillStyle = varColor("--gold");
-            ctx.beginPath();
-            ctx.arc(tx + TILE_SIZE/2, ty + TILE_SIZE/2 + bounce, 10, 0, Math.PI*2);
-            ctx.fill();
-            ctx.strokeStyle = "white";
-            ctx.stroke();
-        }
-    }
-
-    function render() {
+    function draw() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-        
-        for(let y=0; y<GRID_SIZE; y++) {
-            for(let x=0; x<GRID_SIZE; x++) {
-                drawTile(x, y);
+
+        // Kamera-offset (sentrer på spiller)
+        const offsetX = (viewSize / 2) - (player.x * TILE_SIZE) - (TILE_SIZE / 2);
+        const offsetY = (viewSize / 2) - (player.y * TILE_SIZE) - (TILE_SIZE / 2);
+
+        for(let y=0; y<gridDim; y++) {
+            for(let x=0; x<gridDim; x++) {
+                const tx = x * TILE_SIZE + offsetX;
+                const ty = y * TILE_SIZE + offsetY;
+
+                // Tegn kun hvis det er innenfor canvas for ytelse
+                if (tx < -TILE_SIZE || tx > viewSize || ty < -TILE_SIZE || ty > viewSize) continue;
+
+                // 1. GRESS
+                ctx.fillStyle = "#27ae60";
+                ctx.fillRect(tx, ty, TILE_SIZE, TILE_SIZE);
+                ctx.fillStyle = "#2ecc71";
+                ctx.fillRect(tx+10, ty+10, 4, 4); // Blomst/gress-strå
+
+                if(grid[y][x] === 0) {
+                    // 2. HUS (Bedre grafikk)
+                    ctx.fillStyle = "#2c3e50"; // Skygge
+                    ctx.fillRect(tx+8, ty+12, TILE_SIZE-16, TILE_SIZE-16);
+                    ctx.fillStyle = "#ecf0f1"; // Vegg
+                    ctx.fillRect(tx+8, ty+8, TILE_SIZE-16, TILE_SIZE-20);
+                    ctx.fillStyle = "#e74c3c"; // Tak
+                    ctx.beginPath();
+                    ctx.moveTo(tx+8, ty+8); ctx.lineTo(tx+TILE_SIZE/2, ty+2); ctx.lineTo(tx+TILE_SIZE-8, ty+8);
+                    ctx.fill();
+                    // Vindu
+                    ctx.fillStyle = "#f1c40f";
+                    ctx.fillRect(tx+12, ty+14, 6, 6);
+                } else {
+                    // 3. VEI
+                    ctx.fillStyle = "#333";
+                    ctx.fillRect(tx, ty, TILE_SIZE, TILE_SIZE);
+                    
+                    // Vei-detaljer (kantlinjer)
+                    ctx.strokeStyle = "#444";
+                    ctx.strokeRect(tx+2, ty+2, TILE_SIZE-4, TILE_SIZE-4);
+
+                    // Midtstripe (hvis det er vei ved siden av)
+                    ctx.fillStyle = "#555";
+                    if(grid[y][x+1]) ctx.fillRect(tx + TILE_SIZE-10, ty + TILE_SIZE/2 - 2, 10, 4);
+                    if(grid[y+1] && grid[y+1][x]) ctx.fillRect(tx + TILE_SIZE/2 - 2, ty + TILE_SIZE-10, 4, 10);
+                }
+
+                if(grid[y][x] === 2) {
+                    // 4. MYNT (Glitrende)
+                    ctx.fillStyle = "#f1c40f";
+                    const s = Math.sin(Date.now() / 200) * 5;
+                    ctx.beginPath();
+                    ctx.arc(tx + TILE_SIZE/2, ty + TILE_SIZE/2, 10 + s/2, 0, Math.PI*2);
+                    ctx.fill();
+                }
             }
         }
 
-        // TEGN SPILLER (Person med litt stil)
-        const px = player.x * TILE_SIZE;
-        const py = player.y * TILE_SIZE;
+        // SPILLER
+        const px = (viewSize / 2) - (TILE_SIZE / 2);
+        const py = (viewSize / 2) - (TILE_SIZE / 2);
         
-        ctx.fillStyle = "rgba(0,0,0,0.3)"; // Spiller-skygge
-        ctx.fillRect(px+12, py+36, 24, 8);
-        
-        ctx.fillStyle = "#e74c3c"; // Skjorte
-        ctx.fillRect(px+14, py+15, 20, 20);
-        ctx.fillStyle = "#f3dbc2"; // Hud
-        ctx.fillRect(px+17, py+5, 14, 14);
-        ctx.fillStyle = "#2c3e50"; // Bukser
-        ctx.fillRect(px+14, py+30, 20, 8);
-        
-        requestAnimationFrame(render);
+        ctx.fillStyle = "#3498db"; // Kropp
+        ctx.fillRect(px+10, py+15, 30, 30);
+        ctx.fillStyle = "#f3dbc2"; // Hode
+        ctx.fillRect(px+15, py+5, 20, 20);
+        ctx.fillStyle = "#222"; // Øyne
+        ctx.fillRect(px+20, py+12, 3, 3); ctx.fillRect(px+27, py+12, 3, 3);
+
+        requestAnimationFrame(draw);
     }
 
     function move(dx, dy) {
         let nx = player.x + dx;
         let ny = player.y + dy;
 
-        if (nx >= 0 && nx < GRID_SIZE && ny >= 0 && ny < GRID_SIZE) {
-            if (grid[ny][nx] >= 1) {
+        if(nx >= 0 && nx < gridDim && ny >= 0 && ny < gridDim) {
+            if(grid[ny][nx] >= 1) {
                 player.x = nx;
                 player.y = ny;
 
-                if (grid[ny][nx] === 2) {
+                if(grid[ny][nx] === 2) {
                     grid[ny][nx] = 1;
                     coins++;
-                    document.getElementById('coin-txt').innerText = coins;
-                    document.getElementById('buy-btn').disabled = coins < 10;
+                    updateUI();
                     spawnCoin();
                 }
             }
         }
     }
 
-    document.getElementById('buy-btn').onclick = () => {
-        if (coins >= 10) {
+    function expandCity() {
+        if(coins >= 10) {
             coins -= 10;
-            level++;
-            document.getElementById('coin-txt').innerText = coins;
-            document.getElementById('lv-txt').innerText = level;
-            document.getElementById('buy-btn').disabled = coins < 10;
-
-            // Legg til ny vei-stamme
-            let orientation = Math.random() > 0.5;
-            let pos = Math.floor(Math.random() * (GRID_SIZE - 2)) + 1;
-            for(let i=0; i<GRID_SIZE; i++) {
-                if(orientation) grid[pos][i] = 1;
-                else grid[i][pos] = 1;
-            }
-            spawnCoin();
+            gridDim += 5; // Utvid kartet med 5 ruter i begge retninger
+            initGrid(gridDim);
+            updateUI();
         }
-    };
+    }
 
-    // Hjelpefunksjon for farge
-    function varColor(name) { return getComputedStyle(document.documentElement).getPropertyValue(name); }
+    function updateUI() {
+        document.getElementById('coin-txt').innerText = coins;
+        document.getElementById('size-txt').innerText = `${gridDim}x${gridDim}`;
+        document.getElementById('buy-btn').disabled = coins < 10;
+    }
 
-    // Event Listeners
-    const controls = {
-        'up': [0, -1], 'down': [0, 1], 'left': [-1, 0], 'right': [1, 0]
-    };
-    Object.keys(controls).forEach(id => {
-        document.getElementById(id).addEventListener('touchstart', (e) => {
-            e.preventDefault();
-            move(...controls[id]);
-        });
-        document.getElementById(id).addEventListener('click', () => move(...controls[id]));
+    // Input-håndtering
+    const dirs = { 'up': [0, -1], 'down': [0, 1], 'left': [-1, 0], 'right': [1, 0] };
+    Object.keys(dirs).forEach(id => {
+        const btn = document.getElementById(id);
+        const handler = (e) => { e.preventDefault(); move(...dirs[id]); };
+        btn.addEventListener('touchstart', handler);
+        btn.addEventListener('mousedown', handler);
     });
 
     window.addEventListener('keydown', (e) => {
@@ -341,7 +318,8 @@
         if(e.key === "ArrowRight") move(1, 0);
     });
 
-    init();
+    initGrid(gridDim);
+    draw();
 </script>
 
 </body>
